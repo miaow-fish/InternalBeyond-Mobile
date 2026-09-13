@@ -9,9 +9,10 @@
 .cy-gw-head h3{font-size:23px;margin:0;font-weight:650}
 .cy-gw-close{border:0;background:rgba(92,111,145,.1);width:36px;height:36px;border-radius:50%;font-size:23px;color:#66748d}
 .cy-gw-field{display:block;margin:14px 0}
+.cy-gw-field[hidden]{display:none}
 .cy-gw-field span{display:block;font-size:12px;color:#67758e;margin:0 0 7px 3px}
-.cy-gw-field input{box-sizing:border-box;width:100%;border:1px solid rgba(105,125,160,.2);background:rgba(255,255,255,.82);border-radius:16px;padding:13px 14px;font:inherit;color:#263650;outline:none}
-.cy-gw-field input:focus{border-color:#7698cb;box-shadow:0 0 0 3px rgba(118,152,203,.12)}
+.cy-gw-field input,.cy-gw-field select{box-sizing:border-box;width:100%;border:1px solid rgba(105,125,160,.2);background:rgba(255,255,255,.82);border-radius:16px;padding:13px 14px;font:inherit;color:#263650;outline:none}
+.cy-gw-field input:focus,.cy-gw-field select:focus{border-color:#7698cb;box-shadow:0 0 0 3px rgba(118,152,203,.12)}
 .cy-gw-hint{font-size:12px;line-height:1.65;color:#71809a;margin:10px 2px}
 .cy-gw-actions{display:flex;gap:10px;margin-top:18px}
 .cy-gw-actions button{flex:1;border:0;border-radius:16px;padding:12px;font:inherit;background:#e8edf5;color:#40506a}
@@ -31,7 +32,7 @@
 .cy-gw-device-code{display:block;text-align:center;letter-spacing:.18em;border-radius:14px;padding:12px;background:rgba(255,255,255,.72);color:#2d4e78;font:700 18px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:all}
 .cy-gw-login-step small{display:block;color:#71809a;line-height:1.55}
 body.theme-infernal .cy-gw-sheet{background:rgba(25,29,39,.95);color:#e9edf6;border-color:rgba(255,255,255,.12)}
-body.theme-infernal .cy-gw-field input{background:rgba(255,255,255,.06);color:#eef2fa;border-color:rgba(255,255,255,.12)}
+body.theme-infernal .cy-gw-field input,body.theme-infernal .cy-gw-field select{background:rgba(255,255,255,.06);color:#eef2fa;border-color:rgba(255,255,255,.12)}
 body.theme-infernal .cy-gw-result{background:rgba(255,255,255,.06);color:#bdc7d7}
 body.theme-infernal .cy-gw-metric{background:rgba(255,255,255,.05)}
 body.theme-infernal .cy-gw-device-code{background:rgba(255,255,255,.07);color:#dce8f9}

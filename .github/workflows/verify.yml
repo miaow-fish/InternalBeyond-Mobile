@@ -54,6 +54,7 @@ jobs:
           node scripts/check-ob-bridge.mjs
           node scripts/check-model-picker.mjs
           node scripts/check-friends-template.mjs
+          node scripts/check-host-transport.mjs
       - name: Check gateway core
         run: |
           cd gateway
