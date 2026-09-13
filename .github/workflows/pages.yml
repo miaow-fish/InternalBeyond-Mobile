@@ -1,4 +1,4 @@
-name: Deploy CY to GitHub Pages
+name: Deploy InternalBeyond to GitHub Pages
 
 on:
   push:
@@ -36,5 +36,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-# CY redeploy trigger 2026-09-13
