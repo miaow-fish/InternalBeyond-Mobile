@@ -148,54 +148,102 @@ class CodexBridge:
             raise RpcError(f"thread_resume failed: {exc}") from exc
 
     async def stream_turn(self, thread_id: str, text: str, model: str) -> AsyncIterator[dict[str, Any]]:
-        """Compatibility stream used by the existing HTTP layer.
+        """Return assistant text from raw Codex turn events.
 
-        Version one deliberately returns one final text chunk. That gives us a
-        reliable subscription-backed chat first; token streaming can be added on
-        top of the SDK's TurnHandle later without changing the browser contract.
+        Reading item/completed events avoids relying only on TurnResult.final_response,
+        which can legitimately be empty for some completed turns.
         """
         await self.start()
         thread = self._threads.get(thread_id)
         if thread is None:
             raise RpcError("thread is not active; resume it before starting a turn")
+
         try:
-            result = await thread.run(text, model=model or None, sandbox=await self._sandbox())
+            turn = await thread.turn(text, model=model or None, sandbox=await self._sandbox())
         except Exception as exc:
             raise RpcError(f"Codex turn failed: {exc}") from exc
 
-        turn_id = str(getattr(result, "id", "") or "")
-        yield {"type": "turn.started", "turn_id": turn_id}
+        turn_id = str(getattr(turn, "id", "") or "")
+        completed_messages: list[tuple[str | None, str]] = []
+        completed_status: Any = None
 
-        usage = _jsonable(getattr(result, "usage", None)) or {}
-        if isinstance(usage, dict) and usage:
-            self.last_usage = usage
-            yield {"type": "usage", "usage": usage}
+        try:
+            async for event in turn.stream():
+                method = str(getattr(event, "method", "") or "")
+                payload = getattr(event, "payload", None)
 
-        error = getattr(result, "error", None)
-        if error:
-            yield {"type": "turn.failed", "error": _jsonable(error)}
-            return
+                if method == "turn/started":
+                    turn_obj = getattr(payload, "turn", None)
+                    event_turn_id = str(getattr(turn_obj, "id", "") or "")
+                    if event_turn_id:
+                        turn_id = event_turn_id
+                    yield {"type": "turn.started", "turn_id": turn_id}
+                    continue
 
-        text_out = str(getattr(result, "final_response", None) or "").strip()
+                if method == "item/completed":
+                    item = getattr(payload, "item", None)
+                    root = getattr(item, "root", item)
+                    item_type = getattr(root, "type", None)
+                    item_text = getattr(root, "text", None)
+                    item_phase = _jsonable(getattr(root, "phase", None))
+                    if isinstance(root, dict):
+                        item_type = root.get("type", item_type)
+                        item_text = root.get("text", item_text)
+                        item_phase = root.get("phase", item_phase)
+                    if item_type in {"agentMessage", "agent_message"} and item_text is not None:
+                        completed_messages.append((str(item_phase) if item_phase is not None else None, str(item_text)))
+                    continue
+
+                if method in {"thread/tokenUsage/updated", "turn/tokenUsage/updated"}:
+                    raw_usage = getattr(payload, "token_usage", None) or getattr(payload, "usage", None)
+                    usage = _jsonable(raw_usage) or _jsonable(payload) or {}
+                    if isinstance(usage, dict) and usage:
+                        self.last_usage = usage
+                        yield {"type": "usage", "usage": usage}
+                    continue
+
+                if method in {"turn/failed", "error"}:
+                    data = _jsonable(payload)
+                    error_text = "Codex turn failed"
+                    if isinstance(data, dict):
+                        error_text = str(data.get("message") or data.get("error") or error_text)
+                    elif data:
+                        error_text = str(data)
+                    yield {"type": "turn.failed", "error": error_text}
+                    return
+
+                if method == "turn/completed":
+                    turn_obj = getattr(payload, "turn", None)
+                    completed_status = _jsonable(getattr(turn_obj, "status", None))
+                    turn_error = getattr(turn_obj, "error", None)
+                    if turn_error:
+                        yield {"type": "turn.failed", "error": _jsonable(turn_error)}
+                        return
+        except Exception as exc:
+            raise RpcError(f"Codex turn stream failed: {exc}") from exc
+
+        text_out = ""
+        for phase, message in reversed(completed_messages):
+            if phase == "final_answer" and message.strip():
+                text_out = message.strip()
+                break
         if not text_out:
-            parts: list[str] = []
-            for item in getattr(result, "items", None) or []:
-                root = getattr(item, "root", item)
-                item_type = getattr(root, "type", None)
-                item_text = getattr(root, "text", None)
-                if isinstance(root, dict):
-                    item_type = root.get("type", item_type)
-                    item_text = root.get("text", item_text)
-                if item_type in {"agentMessage", "agent_message"} and item_text:
-                    parts.append(str(item_text))
-            text_out = "\n\n".join(part for part in parts if part.strip()).strip()
+            for phase, message in reversed(completed_messages):
+                if phase is None and message.strip():
+                    text_out = message.strip()
+                    break
+        if not text_out:
+            for _, message in reversed(completed_messages):
+                if message.strip():
+                    text_out = message.strip()
+                    break
 
         if not text_out:
             yield {"type": "turn.failed", "error": "Codex turn completed without assistant text"}
             return
 
         yield {"type": "text.completed", "text": text_out}
-        yield {"type": "turn.completed", "data": {"id": turn_id, "status": _jsonable(getattr(result, "status", None))}}
+        yield {"type": "turn.completed", "data": {"id": turn_id, "status": completed_status}}
 
     async def start_device_login(self) -> dict[str, Any]:
         await self.start()
