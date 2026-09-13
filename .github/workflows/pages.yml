@@ -28,6 +28,21 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
+      - name: Apply pink theme override
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('index.html')
+          html = page.read_text(encoding='utf-8')
+          tag = '<link rel="stylesheet" href="./pink-theme.css">'
+          if tag not in html:
+              if '</head>' not in html:
+                  raise SystemExit('index.html has no </head>')
+              html = html.replace('</head>', f'  {tag}\n</head>', 1)
+              page.write_text(html, encoding='utf-8')
+          PY
+
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v4
         with:
