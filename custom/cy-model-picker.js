@@ -16,9 +16,10 @@
     var busy = false;
 
     function readSettings() {
+      if (shell.gateway && typeof shell.gateway.getSettings === 'function') return shell.gateway.getSettings();
       var saved = {};
       try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (error) {}
-      return Object.assign({ endpoint: '', token: '', model: 'gpt-5.6-terra' }, saved);
+      return Object.assign({ endpoint: '', token: '', model: 'gpt-5.6-terra', transport: 'gateway' }, saved);
     }
 
     function writeSettings(next) {
@@ -26,6 +27,22 @@
       var merged = Object.assign({}, current, next || {});
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
       return merged;
+    }
+
+    function hostTransport() {
+      try {
+        var transport = window.IBCYHostTransport;
+        if (!transport || typeof transport !== 'object') return null;
+        if (typeof transport.available === 'function' && !transport.available()) return null;
+        return transport;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function usingHost(settings) {
+      if (shell.gateway && typeof shell.gateway.usingHostTransport === 'function') return shell.gateway.usingHostTransport(settings);
+      return settings && settings.transport === 'host' && !!hostTransport();
     }
 
     function baseOf(endpoint) {
@@ -80,7 +97,11 @@
 
     function modelIds(payload) {
       var ids = [];
-      var data = payload && Array.isArray(payload.data) ? payload.data : [];
+      var data = [];
+      if (Array.isArray(payload)) data = payload;
+      else if (payload && Array.isArray(payload.data)) data = payload.data;
+      else if (payload && Array.isArray(payload.models)) data = payload.models;
+      else if (payload && Array.isArray(payload.items)) data = payload.items;
       data.forEach(function (item) {
         var id = typeof item === 'string' ? item : item && (item.id || item.model || item.slug);
         id = String(id || '').trim();
@@ -93,6 +114,11 @@
 
     async function fetchModels() {
       var settings = readSettings();
+      if (usingHost(settings)) {
+        var transport = hostTransport();
+        if (!transport || typeof transport.models !== 'function') throw new Error('本机 transport 没有提供模型列表');
+        return modelIds(await transport.models());
+      }
       if (!settings.endpoint || !settings.token) throw new Error('先把订阅网关连接好');
       var headers = { Accept: 'application/json', Authorization: 'Bearer ' + settings.token };
       var response = await window.fetch(baseOf(settings.endpoint) + '/v1/models', { cache: 'no-store', headers: headers });
@@ -178,7 +204,7 @@
     function open() {
       installSheet();
       var settings = readSettings();
-      if (!settings.endpoint || !settings.token) {
+      if (!usingHost(settings) && (!settings.endpoint || !settings.token)) {
         if (shell.gateway && typeof shell.gateway.openSetup === 'function') shell.gateway.openSetup();
         return;
       }
