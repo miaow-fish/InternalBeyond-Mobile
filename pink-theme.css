@@ -1,0 +1,53 @@
+:root {
+  --primary-color: #d978a3;
+  --primary: #d978a3;
+  --accent-color: #d978a3;
+  --accent: #d978a3;
+  --background-color: #fff6fa;
+  --background: #fff6fa;
+  --bg: #fff6fa;
+  --surface: rgba(255, 250, 252, 0.86);
+  --card-bg: rgba(255, 250, 252, 0.82);
+  --text-color: #4f3d46;
+  --text: #4f3d46;
+  --muted: #9b7487;
+  --border-color: rgba(204, 122, 158, 0.24);
+  --border: rgba(204, 122, 158, 0.24);
+  accent-color: #d978a3;
+}
+
+html,
+body {
+  background-color: #fff6fa !important;
+  background-image:
+    radial-gradient(circle at 18% 8%, rgba(245, 196, 217, 0.34), transparent 34%),
+    radial-gradient(circle at 82% 28%, rgba(232, 166, 196, 0.22), transparent 38%) !important;
+  color: #4f3d46;
+}
+
+/* iPhone Safari / Home Screen Web App: avoid focus zoom on small form text. */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+  caret-color: #c9618f;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(206, 105, 151, 0.58) !important;
+  box-shadow: 0 0 0 3px rgba(217, 120, 163, 0.10);
+  outline: none;
+}
+
+button,
+[role="button"],
+a {
+  --primary-color: #d978a3;
+  --accent-color: #d978a3;
+}
+
+::selection {
+  background: rgba(217, 120, 163, 0.24);
+}
