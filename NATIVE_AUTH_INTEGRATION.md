@@ -10,6 +10,17 @@ The existing static PWA, CY UI, model picker, conversation mapping, gateway depl
 
 The validated mobile login implementation depends on iOS-native browser authentication and a localhost callback listener. A static GitHub Pages PWA cannot provide that listener or iOS Keychain storage by itself. Therefore the native login must live in an iOS host layer rather than being copied into browser JavaScript.
 
+## Verified credential lifecycle
+
+The validated native implementation already has these pieces and they should be reused rather than reimplemented:
+
+- `Credentials.swift` defines `ProviderError`, `CredentialEnvelope`, JWT account/expiry decoding, `CredentialStoring`, and `KeychainCredentialStore`.
+- `AshoreAuthSession.persist()` is the assembly point that turns the login result into a persisted credential envelope (token + account identity + expiry metadata).
+- `ModelProvider.freshCredential()` owns expiry checks, refresh, rotated credential replacement, and returning a usable current credential before authenticated work.
+- The web layer must not persist or receive OpenAI access/refresh credentials. It only talks to the native host capability boundary.
+
+The InternalBeyond project does not currently have a WebView host layer. That host should be added as a thin container around the existing PWA rather than replacing the PWA architecture.
+
 ## Web/native contract
 
 When a native host is present it injects `window.IBCYHostTransport` before the CY gateway module initializes. The object is deliberately small:
@@ -38,6 +49,14 @@ A native wrapper may set `window.IBCY_PREFERRED_TRANSPORT = 'host'` before page 
 
 The web layer never needs OpenAI access or refresh credentials. Credential refresh and secure storage stay entirely inside the native host. Only model choice, conversation messages, prompt context, streamed text, completion state, usage metadata, and errors cross the bridge.
 
+## Native Swift seams already added here
+
+`native-ios/CodexHostContract.swift` defines the JSON-shaped host capability boundary and the auth-session protocol expected by the host.
+
+`native-ios/AshoreCodexHostAdapter.swift` preserves the validated lifecycle by requiring `ensureFreshCredential()` before model and chat operations while delegating login/logout/status to the native auth session and transport work to the existing Ashore transport layer.
+
+The concrete adapter from the real `AshoreAuthSession` and `ModelProvider` types should be written only after their exact public method signatures are available, so this branch does not guess or fork the already-working credential code.
+
 ## Fallback rule
 
 If the native host is unavailable or native authentication fails, the existing gateway + device-code flow remains available. Do not remove `gateway/`, `custom/cy-gateway.js`, or the current device-login endpoints while introducing the native path.
@@ -46,8 +65,9 @@ If the native host is unavailable or native authentication fails, the existing g
 
 1. Keep the friends-template branch deployable and green.
 2. Keep the host-transport adapter isolated from the upstream page.
-3. Implement the native iOS side using the already validated authentication and transport code.
-4. Test login, refresh, model loading, streaming, cancellation, logout, and gateway fallback on a real device.
-5. Only after real-device validation should the host path become the normal default inside the wrapper.
+3. Reuse the verified `CredentialEnvelope` + Keychain store and adapt `AshoreAuthSession.persist()` / `ModelProvider.freshCredential()` into the host protocols without duplicating their logic.
+4. Add the thin WKWebView host and bridge once the concrete native adapter signatures are pinned.
+5. Test login, refresh, model loading, streaming, cancellation, logout, and gateway fallback on a real device.
+6. Only after real-device validation should the host path become the normal default inside the wrapper.
 
 This document intentionally contains no credentials, private tokens, borrowed login identity, or gateway secrets.
