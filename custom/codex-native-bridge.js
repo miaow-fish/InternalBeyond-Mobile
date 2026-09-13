@@ -21,6 +21,9 @@
     }
 
     var id = makeId();
+    var body = Object.assign({}, params || {});
+    if (String(method) === 'chat') body._bridge_request_id = id;
+
     return new Promise(function (resolve, reject) {
       var timeout = window.setTimeout(function () {
         pending.delete(id);
@@ -34,7 +37,7 @@
         timeout: timeout
       });
 
-      handler.postMessage({ id: id, method: String(method), params: params || {} });
+      handler.postMessage({ id: id, method: String(method), params: body });
     });
   }
 
