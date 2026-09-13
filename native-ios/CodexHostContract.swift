@@ -1,7 +1,5 @@
 import Foundation
 
-/// JSON-shaped value used at the web/native boundary so the host does not
-/// depend on InternalBeyond's browser-side model types.
 enum IBCYJSONValue: Codable, Sendable {
     case string(String)
     case number(Double)
@@ -40,8 +38,6 @@ struct IBCYHostEvent: Codable, Sendable {
     let data: IBCYJSONValue?
 }
 
-/// Implement this protocol by adapting the already-validated Ashore auth and
-/// transport layer. OpenAI credentials remain owned by the native layer.
 protocol IBCYCodexHostProviding: AnyObject {
     func status() async throws -> IBCYJSONValue
     func login() async throws -> IBCYJSONValue
@@ -55,9 +51,7 @@ protocol IBCYCodexHostProviding: AnyObject {
     func cancel(requestID: String) async
 }
 
-/// Authentication adapter boundary. The concrete implementation should call
-/// AshoreAuthSession.persist() after login and ModelProvider.freshCredential()
-/// before authenticated model/chat operations.
+@MainActor
 protocol IBCYAuthSessionProviding: AnyObject {
     func status() async throws -> IBCYJSONValue
     func login() async throws -> IBCYJSONValue
