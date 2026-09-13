@@ -63,7 +63,13 @@ final class NativeCodexProvider: CodexNativeProviding, @unchecked Sendable {
                 userInfo: [NSLocalizedDescriptionKey: "Missing chat request body"]
             )
         }
-        let requestID = UUID().uuidString.lowercased()
+
+        let requestID: String
+        if case .string(let value)? = params["_bridge_request_id"], !value.isEmpty {
+            requestID = value
+        } else {
+            requestID = UUID().uuidString.lowercased()
+        }
         return try await transport.streamChat(request: request, requestID: requestID, emit: emit)
     }
 
