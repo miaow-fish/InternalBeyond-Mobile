@@ -10,16 +10,33 @@ The existing static PWA, CY UI, model picker, conversation mapping, gateway depl
 
 The validated mobile login implementation depends on iOS-native browser authentication and a localhost callback listener. A static GitHub Pages PWA cannot provide that listener or iOS Keychain storage by itself. Therefore the native login must live in an iOS host layer rather than being copied into browser JavaScript.
 
-## Narrow interface
+## Web/native contract
 
-A native host may expose four capabilities to the existing web UI:
+When a native host is present it injects `window.IBCYHostTransport` before the CY gateway module initializes. The object is deliberately small:
 
-- account status / login / logout
-- available model list
-- streamed chat request
-- cancellation
+```js
+window.IBCYHostTransport = {
+  available() {},
+  status() {},
+  login() {},
+  logout() {},
+  models() {},
+  chat(body, options) {}
+};
+```
 
-The web layer should never receive or persist OpenAI access or refresh credentials. The native host owns credential refresh and secure storage. The web layer only sends model, conversation messages, and prompt context, then receives text deltas, completion state, usage metadata, or an error.
+Expected behavior:
+
+- `available()` returns whether the host bridge can currently be used.
+- `status()` resolves to an object containing at least `logged_in`; account/source/usage metadata are optional.
+- `login()` completes the native login flow and resolves only after the host has a usable credential, or rejects on cancel/failure.
+- `logout()` clears the host-owned login state.
+- `models()` resolves to an array, `{data:[...]}`, `{models:[...]}`, or `{items:[...]}`.
+- `chat(body, options)` receives the already-enriched InternalBeyond chat body and returns a standard browser `Response` using the same OpenAI-compatible SSE shape that the current page already consumes.
+
+A native wrapper may set `window.IBCY_PREFERRED_TRANSPORT = 'host'` before page startup to make the host path the initial choice. If the host is unavailable the web app falls back to the existing gateway behavior.
+
+The web layer never needs OpenAI access or refresh credentials. Credential refresh and secure storage stay entirely inside the native host. Only model choice, conversation messages, prompt context, streamed text, completion state, usage metadata, and errors cross the bridge.
 
 ## Fallback rule
 
@@ -28,9 +45,9 @@ If the native host is unavailable or native authentication fails, the existing g
 ## Integration order
 
 1. Keep the friends-template branch deployable and green.
-2. Add a host-transport adapter without changing the upstream page.
+2. Keep the host-transport adapter isolated from the upstream page.
 3. Implement the native iOS side using the already validated authentication and transport code.
-4. Test login, refresh, model loading, streaming, cancellation, logout, and fallback on a real device.
-5. Only after real-device validation should the native path become selectable in the UI.
+4. Test login, refresh, model loading, streaming, cancellation, logout, and gateway fallback on a real device.
+5. Only after real-device validation should the host path become the normal default inside the wrapper.
 
 This document intentionally contains no credentials, private tokens, borrowed login identity, or gateway secrets.
