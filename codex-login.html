@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ChatGPT 连接</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif;color:#26364d;background:#eef4fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:calc(env(safe-area-inset-top,0px) + 28px) 20px calc(env(safe-area-inset-bottom,0px) + 28px);display:flex;justify-content:center}.card{width:min(100%,560px);align-self:flex-start;background:rgba(255,255,255,.82);border:1px solid rgba(77,112,158,.18);border-radius:26px;padding:24px;box-shadow:0 14px 40px rgba(50,75,110,.08);backdrop-filter:blur(18px)}h1{font-size:24px;margin:0 0 8px}p{line-height:1.6;margin:8px 0;color:#5b6b80}.status{margin:20px 0;padding:16px;border-radius:18px;background:#f4f7fb;border:1px solid #dfe7f1;white-space:pre-wrap;word-break:break-word}.status.ok{background:#eef8f2;border-color:#cfe9d7}.status.err{background:#fff3f3;border-color:#f0d0d0}.actions{display:grid;gap:12px}button,a.btn{width:100%;min-height:50px;border:0;border-radius:16px;font-size:16px;font-weight:600;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;padding:0 16px}button{background:#315f95;color:white}button:disabled{opacity:.45}.secondary{background:#e9eff6!important;color:#31506f!important}.code{font:700 28px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-align:center;padding:16px;margin:12px 0;background:white;border:1px dashed #b6c7da;border-radius:14px;color:#203a59}.hidden{display:none!important}small{display:block;margin-top:10px;line-height:1.5;color:#7a8798}iframe{display:none}</style>
+</head>
+<body>
+<main class="card">
+<h1>ChatGPT 连接</h1>
+<p>这个页面只负责恢复 Railway 上的 ChatGPT/Codex 登录，不改原版 IB 的页面和配置。</p>
+<div id="status" class="status">正在读取原版 IB 里已经保存的「远舟」连接配置…</div>
+<div class="actions">
+<button id="login" type="button" disabled>重新登录 ChatGPT</button>
+<a id="auth" class="btn secondary hidden" target="_blank" rel="noopener noreferrer">打开 OpenAI 验证页面</a>
+<div id="codeWrap" class="hidden"><p>在 OpenAI 页面输入设备码：</p><div id="code" class="code"></div></div>
+<button id="verify" type="button" class="secondary hidden">我已完成验证，立即检查</button>
+<a class="btn secondary" href="./index.html">返回原版 IB</a>
+</div>
+<small>配对口令只从这个浏览器现有的 IB 配置中读取，用来请求你自己的 Railway；页面不会显示或上传到其他地方。</small>
+<iframe id="ibFrame" src="./index.html?codex-login-helper=1" title=""></iframe>
+</main>
+<script>
+(function(){
+'use strict';
+var statusEl=document.getElementById('status');
+var loginBtn=document.getElementById('login');
+var authLink=document.getElementById('auth');
+var codeWrap=document.getElementById('codeWrap');
+var codeEl=document.getElementById('code');
+var verifyBtn=document.getElementById('verify');
+var frame=document.getElementById('ibFrame');
+var connection=null;
+var loginId='';
+var pollTimer=0;
+
+function setStatus(text,tone){statusEl.textContent=text;statusEl.className='status'+(tone?' '+tone:'');}
+function sleep(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+function baseOf(endpoint){return String(endpoint||'').trim().replace(/\/+$/,'').replace(/\/v1\/chat\/completions$/i,'');}
+function validConfig(c){return c&&c.apiKey&&c.apiKey!=='host-managed'&&c.endpoint&&/^https?:\/\//i.test(c.endpoint);}
+
+async function readFromOriginalIB(){
+  for(var i=0;i<100;i++){
+    try{
+      var w=frame.contentWindow;
+      if(w&&typeof w.dbGetAll==='function'){
+        var all=await w.dbGetAll('apiConfigs');
+        if(Array.isArray(all)&&all.length){
+          var chosen=all.find(function(c){return validConfig(c)&&/internalbeyond-mobile-production\.up\.railway\.app/i.test(String(c.endpoint||''));})
+            ||all.find(function(c){return validConfig(c)&&String(c.nickname||'')==='远舟';})
+            ||all.find(validConfig);
+          if(chosen)return {endpoint:chosen.endpoint,token:chosen.apiKey,model:chosen.model||'gpt-5.6-sol',source:'apiConfigs'};
+        }
+      }
+    }catch(e){}
+    await sleep(100);
+  }
+  return null;
+}
+
+function readLegacySettings(){
+  try{
+    var s=JSON.parse(localStorage.getItem('ibcy.gateway.settings.v1')||'{}');
+    if(s&&s.endpoint&&s.token)return {endpoint:s.endpoint,token:s.token,model:s.model||'gpt-5.6-sol',source:'gateway-settings'};
+  }catch(e){}
+  return null;
+}
+
+async function request(path,opts){
+  if(!connection)throw new Error('没有找到已保存的网关配置');
+  var headers=Object.assign({Accept:'application/json',Authorization:'Bearer '+connection.token},opts&&opts.headers||{});
+  var res=await fetch(baseOf(connection.endpoint)+path,Object.assign({cache:'no-store',headers:headers},opts||{}));
+  var text=await res.text();
+  var data={};
+  try{data=text?JSON.parse(text):{};}catch(e){data={raw:text};}
+  if(!res.ok)throw new Error('HTTP '+res.status+(text?'：'+text.slice(0,300):''));
+  return data;
+}
+
+async function checkGateway(){
+  await request('/healthz');
+  var s=await request('/v1/codex/status');
+  return s;
+}
+
+async function realChatTest(){
+  var body={model:connection.model||'gpt-5.6-sol',messages:[{role:'user',content:'Reply with exactly: OK'}],stream:false,conversation_id:'ib-login-check-'+Date.now(),identity_id:'ib-login-check'};
+  var data=await request('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  var text=data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+  if(!text)throw new Error('网关没有返回助手文本');
+  return text;
+}
+
+async function pollOnce(){
+  if(!loginId)return;
+  var r=await request('/v1/codex/login/device/'+encodeURIComponent(loginId));
+  if(r.status==='completed'){
+    clearTimeout(pollTimer);
+    setStatus('OpenAI 登录已完成。正在做一次真实消息测试…');
+    try{
+      await realChatTest();
+      setStatus('连接已验证，可以正常发消息。现在返回原版 IB 就能继续用。','ok');
+      verifyBtn.classList.add('hidden');
+      loginBtn.disabled=false;
+      loginBtn.textContent='需要时重新登录';
+    }catch(e){setStatus('登录完成，但真实消息测试仍失败：\n'+String(e.message||e),'err');loginBtn.disabled=false;}
+    return;
+  }
+  if(r.status==='failed'||r.status==='cancelled')throw new Error(r.error||'登录没有完成');
+  setStatus('等待 OpenAI 验证完成…');
+  pollTimer=setTimeout(function(){pollOnce().catch(onError);},1600);
+}
+
+function onError(e){clearTimeout(pollTimer);setStatus(String(e&&e.message||e),'err');loginBtn.disabled=false;verifyBtn.classList.remove('hidden');}
+
+async function startLogin(){
+  loginBtn.disabled=true;
+  authLink.classList.add('hidden');
+  codeWrap.classList.add('hidden');
+  verifyBtn.classList.add('hidden');
+  setStatus('正在向 Railway 发起新的 ChatGPT 登录…');
+  try{
+    var login=await request('/v1/codex/login/device',{method:'POST'});
+    loginId=String(login.login_id||'');
+    if(!loginId)throw new Error('Railway 没有返回 login_id');
+    var url=String(login.verification_url||'');
+    var code=String(login.user_code||'');
+    if(url){authLink.href=url;authLink.classList.remove('hidden');}
+    if(code){codeEl.textContent=code;codeWrap.classList.remove('hidden');}
+    verifyBtn.classList.remove('hidden');
+    setStatus('新的登录流程已建立。打开 OpenAI 验证页面并输入下面的设备码。');
+    pollOnce().catch(onError);
+  }catch(e){onError(e);}
+}
+
+loginBtn.addEventListener('click',startLogin);
+verifyBtn.addEventListener('click',function(){pollOnce().catch(onError);});
+
+(async function init(){
+  connection=await readFromOriginalIB();
+  if(!connection)connection=readLegacySettings();
+  if(!connection){setStatus('没有找到已保存的「远舟」Railway 配置。先回原版 IB 的 API 页面确认「远舟」配置仍存在，再打开这里。','err');return;}
+  try{
+    var s=await checkGateway();
+    loginBtn.disabled=false;
+    if(s&&s.logged_in)setStatus('Railway 能读到账号记录，但刚才实际聊天已经出现 401。请点「重新登录 ChatGPT」刷新凭证。');
+    else setStatus('Railway 已连接，但 ChatGPT 当前未登录。请点「重新登录 ChatGPT」。');
+  }catch(e){setStatus('Railway 连接失败：\n'+String(e.message||e),'err');loginBtn.disabled=false;}
+})();
+})();
+</script>
+</body>
+</html>
