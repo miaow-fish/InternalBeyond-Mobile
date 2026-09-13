@@ -71,7 +71,7 @@ function readLegacySettings(){
 async function request(path,opts){
   if(!connection)throw new Error('没有找到已保存的网关配置');
   var headers=Object.assign({Accept:'application/json',Authorization:'Bearer '+connection.token},opts&&opts.headers||{});
-  var res=await fetch(baseOf(connection.endpoint)+path,Object.assign({cache:'no-store',headers:headers},opts||{}));
+  var res=await fetch(baseOf(connection.endpoint)+path,Object.assign({},opts||{},{cache:'no-store',headers:headers}));
   var text=await res.text();
   var data={};
   try{data=text?JSON.parse(text):{};}catch(e){data={raw:text};}
