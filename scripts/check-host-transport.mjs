@@ -32,7 +32,7 @@ if (!picker.includes('transport.models()') || !picker.includes('usingHost(settin
   throw new Error('model picker is not wired to the optional host transport');
 }
 
-for (const marker of ['AshoreAuthSession.persist()', 'CodexProvider.freshCredential()', 'CredentialEnvelope', 'Keychain']) {
+for (const marker of ['AshoreAuthSession.persist()', 'CodexProvider.freshCredential()', 'credential envelope', 'Keychain']) {
   if (!docs.includes(marker)) throw new Error(`credential lifecycle documentation missing: ${marker}`);
 }
 
