@@ -2,8 +2,8 @@ import SwiftUI
 import WebKit
 
 /// Minimal native host for the existing InternalBeyond web UI.
-/// Add `codex-native-bridge.js` and `codex-direct-adapter.js` to the iOS target
-/// as bundled resources; the original index.html does not need to be modified.
+/// Add the Codex bridge/adapter/UI scripts to the iOS target as bundled
+/// resources; the original index.html does not need to be modified.
 struct InternalBeyondWebView: UIViewRepresentable {
     let startURL: URL
     let provider: CodexNativeProviding
@@ -16,7 +16,7 @@ struct InternalBeyondWebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         let controller = configuration.userContentController
 
-        for resource in ["codex-native-bridge", "codex-direct-adapter"] {
+        for resource in ["codex-native-bridge", "codex-direct-adapter", "codex-direct-ui"] {
             if let url = Bundle.main.url(forResource: resource, withExtension: "js"),
                let source = try? String(contentsOf: url, encoding: .utf8) {
                 controller.addUserScript(WKUserScript(
