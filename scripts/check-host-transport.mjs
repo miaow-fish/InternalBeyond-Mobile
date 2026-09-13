@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
 
-const [gateway, picker, docs] = await Promise.all([
+const [gateway, picker, docs, contract, adapter] = await Promise.all([
   readFile('custom/cy-gateway.js', 'utf8'),
   readFile('custom/cy-model-picker.js', 'utf8'),
-  readFile('NATIVE_AUTH_INTEGRATION.md', 'utf8')
+  readFile('NATIVE_AUTH_INTEGRATION.md', 'utf8'),
+  readFile('native-ios/CodexHostContract.swift', 'utf8'),
+  readFile('native-ios/AshoreCodexHostAdapter.swift', 'utf8')
 ]);
 
 for (const marker of [
@@ -27,8 +29,16 @@ if (!picker.includes('transport.models()') || !picker.includes('usingHost(settin
   throw new Error('model picker is not wired to the optional host transport');
 }
 
-if (!docs.includes('window.IBCYHostTransport') || !docs.includes('The web layer never needs OpenAI access or refresh credentials')) {
-  throw new Error('native host contract documentation is incomplete');
+for (const marker of ['AshoreAuthSession.persist()', 'ModelProvider.freshCredential()', 'CredentialEnvelope', 'Keychain']) {
+  if (!docs.includes(marker)) throw new Error(`credential lifecycle documentation missing: ${marker}`);
+}
+
+if (!contract.includes('protocol IBCYCodexHostProviding') || !contract.includes('protocol IBCYAuthSessionProviding')) {
+  throw new Error('native host protocol boundary is incomplete');
+}
+
+if (!adapter.includes('try await auth.ensureFreshCredential()') || !adapter.includes('IBCYCodexTransportProviding')) {
+  throw new Error('Ashore host adapter does not preserve fresh-credential gating');
 }
 
 console.log('CY optional native host transport seam OK');
