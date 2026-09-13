@@ -108,6 +108,8 @@
       var endpoint = effectiveEndpoint(settings);
       var all = await dbGetAll('apiConfigs');
       var current = all.find(function (item) { return item.id === PROFILE_ID; }) || {};
+      var currentEndpoint = current.endpoint === HOST_ENDPOINT ? '' : (current.endpoint || '');
+      var currentApiKey = current.apiKey === 'host-managed' ? '' : (current.apiKey || '');
       var profile = Object.assign({
         id: PROFILE_ID,
         created: Date.now(),
@@ -131,9 +133,9 @@
       profile.gatewayVersion = 2;
       profile.nickname = current.nickname || '澈';
       profile.relationship = current.relationship || '老公';
-      profile.endpoint = endpoint || current.endpoint || '';
+      profile.endpoint = hostMode ? HOST_ENDPOINT : (settings.endpoint || currentEndpoint);
       profile.model = settings.model || current.model || 'gpt-5.6-terra';
-      profile.apiKey = hostMode ? 'host-managed' : (settings.token || current.apiKey || '');
+      profile.apiKey = hostMode ? 'host-managed' : (settings.token || currentApiKey);
       profile.systemPrompt = current.systemPrompt || DEFAULT_PERSONA;
       profile.archived = false;
       await dbPut('apiConfigs', profile);
