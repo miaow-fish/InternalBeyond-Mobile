@@ -176,9 +176,25 @@ class CodexBridge:
             yield {"type": "turn.failed", "error": _jsonable(error)}
             return
 
-        text_out = str(getattr(result, "final_response", None) or "")
-        if text_out:
-            yield {"type": "text.completed", "text": text_out}
+        text_out = str(getattr(result, "final_response", None) or "").strip()
+        if not text_out:
+            parts: list[str] = []
+            for item in getattr(result, "items", None) or []:
+                root = getattr(item, "root", item)
+                item_type = getattr(root, "type", None)
+                item_text = getattr(root, "text", None)
+                if isinstance(root, dict):
+                    item_type = root.get("type", item_type)
+                    item_text = root.get("text", item_text)
+                if item_type in {"agentMessage", "agent_message"} and item_text:
+                    parts.append(str(item_text))
+            text_out = "\n\n".join(part for part in parts if part.strip()).strip()
+
+        if not text_out:
+            yield {"type": "turn.failed", "error": "Codex turn completed without assistant text"}
+            return
+
+        yield {"type": "text.completed", "text": text_out}
         yield {"type": "turn.completed", "data": {"id": turn_id, "status": _jsonable(getattr(result, "status", None))}}
 
     async def start_device_login(self) -> dict[str, Any]:
