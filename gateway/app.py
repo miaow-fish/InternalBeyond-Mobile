@@ -25,7 +25,7 @@ TOKEN = os.getenv("CY_GATEWAY_TOKEN", "")
 DEFAULT_MODEL = os.getenv("CY_CODEX_MODEL", "gpt-5.6-terra")
 ALLOWED_ORIGINS = [x.strip() for x in os.getenv(
     "CY_ALLOWED_ORIGINS",
-    "https://cjy020613-bit.github.io,http://localhost:8000,http://127.0.0.1:8000",
+    "https://miaow-fish.github.io,http://localhost:8000,http://127.0.0.1:8000",
 ).split(",") if x.strip()]
 store = ConversationStore(DATA_DIR / "conversations.sqlite3")
 bridge = CodexBridge(os.getenv("CODEX_HOME") or str(DATA_DIR / "codex-home"))
