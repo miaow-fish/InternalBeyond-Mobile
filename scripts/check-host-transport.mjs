@@ -12,7 +12,9 @@ for (const marker of [
   "window.IBCY_PREFERRED_TRANSPORT === 'host'",
   'transport.chat(body',
   'hostTransport().status()',
-  'hostTransport().login()'
+  'hostTransport().login()',
+  "current.endpoint === HOST_ENDPOINT ? ''",
+  "current.apiKey === 'host-managed' ? ''"
 ]) {
   if (!gateway.includes(marker)) throw new Error(`gateway host transport marker missing: ${marker}`);
 }
