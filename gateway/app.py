@@ -178,7 +178,7 @@ async def lifespan(_: FastAPI):
     await bridge.stop()
 
 
-app = FastAPI(title="Internal Beyond Codex Gateway", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="Internal Beyond Codex Gateway", version="0.2.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -264,7 +264,12 @@ async def chat(body: ChatRequest, request: Request):
                     yield "data: " + json.dumps(final, ensure_ascii=False) + "\n\ndata: [DONE]\n\n"
                     return
                 else:
-                    yield "data: " + json.dumps({"error": {"message": item["error"], "type": "gateway_error"}}, ensure_ascii=False) + "\n\ndata: [DONE]\n\n"
+                    # Internal Beyond's OpenAI-compatible stream parser ignores a top-level
+                    # {error: ...} SSE object and then reports only “返回为空”. Surface the
+                    # real gateway failure as one assistant delta so the actual cause is visible.
+                    message = "【网关错误】" + str(item.get("error") or "unknown gateway error")
+                    yield "data: " + json.dumps(chunk(item["id"], body.model, message), ensure_ascii=False) + "\n\n"
+                    yield "data: " + json.dumps(chunk(item["id"], body.model, finish="stop"), ensure_ascii=False) + "\n\ndata: [DONE]\n\n"
                     return
         finally:
             # Safari may detach. Do not cancel the producer: let Codex finish the turn.
