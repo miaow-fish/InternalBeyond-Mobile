@@ -145,8 +145,16 @@ verifyBtn.addEventListener('click',function(){pollOnce().catch(onError);});
   try{
     var s=await checkGateway();
     loginBtn.disabled=false;
-    if(s&&s.logged_in)setStatus('Railway 能读到账号记录，但刚才实际聊天已经出现 401。请点「重新登录 ChatGPT」刷新凭证。');
-    else setStatus('Railway 已连接，但 ChatGPT 当前未登录。请点「重新登录 ChatGPT」。');
+    if(s&&s.logged_in){
+      setStatus('ChatGPT 已登录。正在做一次真实消息测试…');
+      try{
+        await realChatTest();
+        setStatus('连接已验证，可以正常发消息。现在返回原版 IB 就能继续用。','ok');
+        loginBtn.textContent='需要时重新登录';
+      }catch(testError){
+        setStatus('ChatGPT 已登录，但真实消息测试失败：\n'+String(testError.message||testError),'err');
+      }
+    }else setStatus('Railway 已连接，但 ChatGPT 当前未登录。请点「重新登录 ChatGPT」。');
   }catch(e){setStatus('Railway 连接失败：\n'+String(e.message||e),'err');loginBtn.disabled=false;}
 })();
 })();
